@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Emergency Panic Alert</title>
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --card-bg: #1e293b;
+            --accent-red: #ef4444;
+            --accent-red-hover: #dc2626;
+            --text-main: #f8fafc;
+            --text-sub: #94a3b8;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 1rem;
+        }
+
+        .container {
+            background-color: var(--card-bg);
+            border-radius: 1.5rem;
+            padding: 2rem;
+            max-width: 420px;
+            width: 100%;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            text-align: center;
+        }
+
+        h1 { margin-top: 0; font-size: 1.5rem; }
+        p { color: var(--text-sub); font-size: 0.9rem; }
+
+        .panic-btn {
+            background-color: var(--accent-red);
+            color: white;
+            border: none;
+            width: 160px;
+            height: 160px;
+            border-radius: 50%;
+            font-size: 1.25rem;
+            font-weight: bold;
+            cursor: pointer;
+            margin: 1.5rem 0;
+            box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
+            animation: pulse 2s infinite;
+            transition: transform 0.1s, background-color 0.2s;
+        }
+
+        .panic-btn:active {
+            transform: scale(0.95);
+            background-color: var(--accent-red-hover);
+        }
+
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+            70% { box-shadow: 0 0 0 25px rgba(239, 68, 68, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+        }
+
+        .form-group {
+            text-align: left;
+            margin-bottom: 1rem;
+        }
+
+        label {
+            display: block;
+            font-size: 0.8rem;
+            color: var(--text-sub);
+            margin-bottom: 0.25rem;
+        }
+
+        input {
+            width: 100%;
+            padding: 0.75rem;
+            border-radius: 0.5rem;
+            border: 1px solid #334155;
+            background-color: #0f172a;
+            color: white;
+            box-sizing: border-box;
+            font-size: 0.9rem;
+        }
+
+        .status {
+            margin-top: 1rem;
+            padding: 0.75rem;
+            border-radius: 0.5rem;
+            background-color: #0f172a;
+            font-size: 0.85rem;
+            color: #38bdf8;
+            min-height: 1.2rem;
+        }
+
+        .controls {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 1rem;
+        }
+
+        .secondary-btn {
+            flex: 1;
+            padding: 0.6rem;
+            border: 1px solid #334155;
+            background-color: transparent;
+            color: var(--text-main);
+            border-radius: 0.5rem;
+            cursor: pointer;
+            font-size: 0.8rem;
+        }
+
+        .secondary-btn.active {
+            background-color: #0284c7;
+            border-color: #0284c7;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Emergency SOS</h1>
+    <p>Tap button or activate Voice AI to send alert & trigger alarm.</p>
+
+    <button class="panic-btn" onclick="triggerEmergency()">PANIC</button>
+
+    <div class="form-group">
+        <label for="contact">Emergency Contact Phone (e.g., +1234567890)</label>
+        <input type="tel" id="contact" placeholder="+1234567890">
+    </div>
+
+    <div class="controls">
+        <button class="secondary-btn" id="aiBtn" onclick="toggleSpeechAI()">Start AI Voice Listener</button>
+        <button class="secondary-btn" onclick="stopSiren()">Stop Alarm</button>
+    </div>
+
+    <div class="status" id="statusBox">System Ready</div>
+</div>
+
+<script>
+    let audioCtx, osc, gainNode;
+    let isAlarmPlaying = false;
+    let recognition;
+    let isListening = false;
+
+    // Trigger complete emergency workflow
+    function triggerEmergency() {
+        updateStatus("EMERGENCY TRIGGERED!", "#ef4444");
+        playSiren();
+        sendAlertMessage();
+    }
+
+    // Get location and launch direct SMS alert link
+    function sendAlertMessage() {
+        const phone = document.getElementById('contact').value.trim();
+        
+        if (!navigator.geolocation) {
+            openSMS(phone, "EMERGENCY ALERT! I need help immediately.");
+            return;
+        }
+
+        navigator.geolocation.getCurrentPosition(
+            (pos) => {
+                const lat = pos.coords.latitude;
+                const lon = pos.coords.longitude;
+                const mapLink = `https://maps.google.com/?q=${lat},${lon}`;
+                const msg = `EMERGENCY ALERT! I need help. My current location: ${mapLink}`;
+                openSMS(phone, msg);
+            },
+            () => {
+                openSMS(phone, "EMERGENCY ALERT! I need help immediately. (Location unavailable)");
+            },
+            { enableHighAccuracy: true, timeout: 5000 }
+        );
+    }
+
+    function openSMS(phone, text) {
+        const encodedText = encodeURIComponent(text);
+        const target = phone ? `sms:${phone}?body=${encodedText}` : `sms:?body=${encodedText}`;
+        window.location.href = target;
+    }
+
+    // Synthesizer Loud Siren
+    function playSiren() {
+        if (isAlarmPlaying) return;
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        osc = audioCtx.createOscillator();
+        gainNode = audioCtx.createGain();
+
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(800, audioCtx.currentTime);
+
+        // Oscillate frequency for classic siren sound
+        let high = false;
+        setInterval(() => {
+            if (!isAlarmPlaying) return;
+            osc.frequency.setValueAtTime(high ? 800 : 1200, audioCtx.currentTime);
+            high = !high;
+        }, 400);
+
+        osc.connect(gainNode);
+        gainNode.connect(audioCtx.destination);
+        osc.start();
+        isAlarmPlaying = true;
+    }
+
+    function stopSiren() {
+        if (audioCtx && isAlarmPlaying) {
+            osc.stop();
+            audioCtx.close();
+            isAlarmPlaying = false;
+            updateStatus("Alarm Stopped", "#38bdf8");
+        }
+    }
+
+    // Hands-free AI Keyword Detection using Speech API
+    function toggleSpeechAI() {
+        const aiBtn = document.getElementById('aiBtn');
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+        if (!SpeechRecognition) {
+            alert("Speech AI is not supported on this browser. Try Chrome or Safari.");
+            return;
+        }
+
+        if (!isListening) {
+            recognition = new SpeechRecognition();
+            recognition.continuous = true;
+            recognition.interimResults = true;
+            recognition.lang = 'en-US';
+
+            recognition.onresult = (event) => {
+                for (let i = event.resultIndex; i < event.results.length; i++) {
+                    const transcript = event.results[i][0].transcript.toLowerCase().trim();
+                    if (transcript.includes("help") || transcript.includes("panic") || transcript.includes("emergency")) {
+                        recognition.stop();
+                        isListening = false;
+                        aiBtn.classList.remove('active');
+                        aiBtn.innerText = "Start AI Voice Listener";
+                        triggerEmergency();
+                        break;
+                    }
+                }
+            };
+
+            recognition.onend = () => {
+                if (isListening) recognition.start(); // Keep listening automatically
+            };
+
+            recognition.start();
+            isListening = true;
+            aiBtn.classList.add('active');
+            aiBtn.innerText = "AI Listening... (Say 'Help')";
+            updateStatus("AI Active: Say 'Help' or 'Emergency'", "#34d399");
+        } else {
+            isListening = false;
+            recognition.stop();
+            aiBtn.classList.remove('active');
+            aiBtn.innerText = "Start AI Voice Listener";
+            updateStatus("AI Listener Stopped", "#38bdf8");
+        }
+    }
+
+    function updateStatus(msg, color) {
+        const box = document.getElementById('statusBox');
+        box.innerText = msg;
+        box.style.color = color;
+    }
+</script>
+</body>
+</html>
